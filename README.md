@@ -1,81 +1,28 @@
 # Cold Start Streaming Defect Detector
 
-An end-to-end anomaly detection project for manufacturing environments where **defect data is limited or unavailable** during a new product launch.
+An end-to-end manufacturing anomaly detection project for environments where defect samples are limited during new product introduction.
 
-This project is designed to help you learn how a modern industrial AI system is built from the ground up:
+The system is built around an unsupervised **PyTorch autoencoder** that learns normal visual patterns from defect-free parts. Images or frames with high reconstruction error are treated as anomalies and can later be passed into an orchestration layer for diagnosis, SOP retrieval, and ticket generation.
 
-- **PyTorch** for unsupervised visual anomaly detection
-- **Databricks + Spark Structured Streaming** for real-time ingestion and processing
-- **FastAPI** for serving model and orchestration APIs
-- **LangGraph + FAISS** for LLM-driven defect diagnosis and SOP retrieval
-- **Next.js** for the factory manager dashboard
-- **MongoDB** for ticket and audit storage
+## Overview
 
-The core idea is simple:
-
-Instead of training a classifier on many examples of bad parts, the system learns what a **normal part** looks like. When a live image cannot be reconstructed well by the autoencoder, the frame is flagged as anomalous. That anomaly is then passed through an LLM pipeline to generate a diagnosis and a maintenance ticket.
-
----
-
-## Problem Statement
-
-In real factories, new products often begin production before there is enough historical defect data to train a traditional supervised vision classifier.
-
-This project addresses that **cold start anomaly detection** problem by:
-
-- learning the visual representation of good components
-- detecting abnormal frames using reconstruction error
-- describing the defect with a vision-language model
-- retrieving the relevant SOP or repair guidance
-- generating an actionable maintenance ticket
-
----
-
-## Project Goals
-
-- Build a real-time anomaly detection pipeline for manufacturing
-- Learn unsupervised defect detection with autoencoders
-- Understand how streaming systems work before moving into Databricks
-- Learn how Databricks fits into ML + streaming workflows
-- Add LLM-based diagnosis and retrieval over repair manuals
-- Expose results through a backend API and dashboard
-
----
-
-## Key Features
-
-- Unsupervised defect detection for low-data manufacturing environments
-- Real-time frame ingestion and anomaly scoring pipeline
-- Delta-style anomaly event logging for downstream processing
-- LLM-assisted defect description and SOP retrieval workflow
-- Automated maintenance ticket generation
-- Web dashboard for monitoring anomalies and system health
+- Detect anomalies without needing a large labeled defect dataset
+- Train an autoencoder on normal images from the MVTec AD dataset
+- Score incoming images and flag abnormal frames using reconstruction error
+- Run a local streaming simulation before integrating Databricks
+- Extend the pipeline with FastAPI, LangGraph, FAISS, MongoDB, and a Next.js dashboard
 
 ---
 
 ## System Architecture
 
-```text
-Image Stream / Simulator
-        |
-        v
-Databricks / Spark Structured Streaming
-        |
-        v
-PyTorch Autoencoder Inference
-        |
-        v
-Anomaly Event Log (Delta Table)
-        |
-        v
-FastAPI Backend
-        |
-        v
-LangGraph + VLM + FAISS
-        |
-        v
-Maintenance Ticket + Dashboard + MongoDB
-```
+![System Architecture](docs/Architecture-Diagram.png)
+
+Architecture assets:
+
+- `docs/Architecture-Diagram.png`
+- `docs/architecture.js`
+- `docs/architecture.md`
 
 ---
 
@@ -87,22 +34,20 @@ Maintenance Ticket + Dashboard + MongoDB
 │   ├── api/                # FastAPI backend
 │   └── dashboard/          # Next.js frontend dashboard
 ├── data/
-│   ├── processed/          # Processed data artifacts
-│   └── raw/                # Raw dataset / streamed frames
+│   ├── processed/          # Processed artifacts
+│   └── raw/                # Local datasets and streamed frames
 ├── docs/
-│   └── architecture.md     # High-level architecture notes
+│   ├── architecture.js     # Mermaid architecture source
+│   └── architecture.md     # Architecture notes
 ├── ml/
-│   ├── inference/          # Frame scoring / anomaly scoring
-│   ├── models/             # Autoencoder model definitions
-│   └── training/           # Training scripts
-├── orchestration/
-│   ├── rag/                # FAISS indexing/query placeholders
-│   ├── vector_store/       # Vector index storage
-│   ├── agents.py           # LLM/VLM/RAG agent placeholders
-│   └── graph.py            # LangGraph flow placeholder
+│   ├── data/               # Dataset loading utilities
+│   ├── inference/          # Frame scoring and thresholds
+│   ├── models/             # Autoencoder models
+│   └── training/           # Training entry points
+├── orchestration/          # LLM, RAG, and ticket generation placeholders
 ├── streaming/
-│   ├── databricks/         # Databricks Structured Streaming jobs
-│   └── simulator/          # Local frame producer / stream simulator
+│   ├── databricks/         # Databricks jobs for later integration
+│   └── simulator/          # Local frame simulation and scoring
 ├── .env.example
 ├── docker-compose.yml
 └── README.md
@@ -110,234 +55,131 @@ Maintenance Ticket + Dashboard + MongoDB
 
 ---
 
-## Tech Stack
+## How It Works
 
-### Machine Learning
-
-- **PyTorch**
-- **Torchvision**
-- **MVTec AD dataset**
-
-### Streaming and Data Infrastructure
-
-- **Databricks**
-- **Apache Spark Structured Streaming**
-- **Delta Lake**
-- **MLflow**
-
-### LLM and Retrieval
-
-- **LangGraph**
-- **FAISS**
-- **Gemini API** or an open-source VLM such as **LLaVA**
-
-### Application Layer
-
-- **FastAPI**
-- **Next.js**
-- **MongoDB**
+1. Normal images from the MVTec AD dataset are used to train an autoencoder.
+2. The model learns to reconstruct defect-free inputs with low error.
+3. Reconstruction error is measured with mean squared error.
+4. Images or frames above a chosen threshold are flagged as anomalies.
+5. Local streaming simulates a live production feed for real-time scoring.
+6. The backend, retrieval, and dashboard layers extend this into a full operational system.
 
 ---
 
-## Implementation Phases
+## Setup
 
-The project is organized into four progressive implementation phases.
-
-### Phase 1: Local Anomaly Detection Baseline
-
-**Objective**
-
-- establish an unsupervised defect-detection baseline using the MVTec AD dataset
-
-**Scope**
-
-- dataset loading and preprocessing
-- convolutional autoencoder training in PyTorch
-- reconstruction error scoring with MSE
-- threshold selection for anomaly classification
-- offline validation on normal and defective samples
-
-**Primary folders**
-
-- `ml/models/`
-- `ml/training/`
-- `ml/inference/`
-
----
-
-### Phase 2: Streaming Inference Pipeline
-
-**Objective**
-
-- convert offline scoring into a real-time anomaly detection workflow
-
-**Scope**
-
-- frame producer for simulated camera input
-- continuous frame scoring and anomaly event generation
-- local event logging for validation
-- Spark Structured Streaming job design
-- Databricks ingestion and Delta table integration
-
-**Primary folders**
-
-- `streaming/simulator/`
-- `streaming/databricks/`
-- `ml/inference/`
-
----
-
-### Phase 3: Defect Diagnosis and Retrieval-Augmented Guidance
-
-**Objective**
-
-- enrich anomaly events with defect descriptions and repair guidance
-
-**Scope**
-
-- vision-language defect description step
-- SOP and repair manual ingestion
-- FAISS index construction and querying
-- LangGraph workflow orchestration
-- maintenance ticket draft generation
-
-**Primary folders**
-
-- `orchestration/`
-- `apps/api/`
-
----
-
-### Phase 4: Application Layer and Productization
-
-**Objective**
-
-- expose the system through service APIs, persistence, and a monitoring dashboard
-
-**Scope**
-
-- FastAPI endpoints for health, anomalies, and tickets
-- MongoDB persistence for events and ticket history
-- Next.js dashboard for monitoring and review
-- auditability, operator workflows, and deployment readiness
-
-**Primary folders**
-
-- `apps/api/`
-- `apps/dashboard/`
-- `orchestration/`
-
----
-
-## Roadmap
-
-- [x] Monorepo scaffold
-- [x] FastAPI service skeleton
-- [x] Next.js dashboard skeleton
-- [x] Autoencoder model placeholder
-- [x] Streaming simulator placeholder
-- [x] LangGraph and FAISS placeholders
-- [ ] MVTec AD dataset loader
-- [ ] Autoencoder training pipeline
-- [ ] Threshold calibration and evaluation workflow
-- [ ] Real-time anomaly scoring loop
-- [ ] Databricks Structured Streaming integration
-- [ ] Delta table anomaly logging
-- [ ] VLM-powered defect description
-- [ ] FAISS indexing and retrieval pipeline
-- [ ] Ticket persistence in MongoDB
-- [ ] Live anomaly dashboard and polling
-
----
-
-## Getting Started
-
-### 1. Clone the repository
+### Create and activate a virtual environment
 
 ```bash
-git clone <your-repo-url>
-cd Anamoly-Detection
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
-### 2. Create environment variables
+### Install dependencies
+
+```bash
+pip install -r ml/requirements.txt
+pip install -r streaming/requirements.txt
+```
+
+If Databricks dependencies are needed later:
+
+```bash
+pip install -r streaming/requirements.databricks.txt
+```
+
+### Environment variables
 
 ```bash
 cp .env.example .env
 ```
 
-Fill in values as needed, especially if you later connect:
+---
 
-- Databricks
-- Gemini API
-- MongoDB
+## Dataset
 
-### 3. Start MongoDB locally
+Place the MVTec AD dataset under:
 
-```bash
-docker compose up -d mongo
+```text
+data/raw/mvtec_ad/
 ```
 
-### 4. Start the FastAPI backend
+Example structure:
+
+```text
+data/raw/mvtec_ad/bottle/
+  train/good/
+  test/good/
+  test/broken_large/
+  test/broken_small/
+  ground_truth/
+```
+
+Everything inside `data/raw/` is ignored by Git.
+
+---
+
+## Run Locally
+
+### Train a baseline model
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r apps/api/requirements.txt
+python3 -m ml.training.train_autoencoder --category bottle
+```
+
+### Run local streaming inference
+
+```bash
+python3 -m streaming.simulator.local_stream_inference \
+  --dataset-path data/raw/mvtec_ad/bottle/test \
+  --checkpoint-path artifacts/models/bottle_autoencoder.pt \
+  --fps 5
+```
+
+### Start the FastAPI backend
+
+From `apps/api`:
+
+```bash
+pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Run this from the `apps/api` directory.
+### Start the dashboard
 
-### 5. Start the Next.js dashboard
+From `apps/dashboard`:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Run this from the `apps/dashboard` directory.
+---
+
+## Tech Stack
+
+- **PyTorch** and **Torchvision**
+- **MVTec AD dataset**
+- **FastAPI**
+- **Next.js**
+- **MongoDB**
+- **LangGraph**
+- **FAISS**
+- **Databricks** and **Spark Structured Streaming**
 
 ---
 
-## Current Status
+## Documentation
 
-This repository is currently a **project skeleton**.
-
-What already exists:
-
-- base repo structure
-- FastAPI scaffold
-- Next.js scaffold
-- autoencoder placeholder
-- streaming simulator placeholder
-- LangGraph / FAISS placeholders
-
-What still needs to be implemented:
-
-- real dataset loaders
-- training and evaluation pipeline
-- real-time scoring pipeline
-- Databricks integration
-- Delta table reads/writes
-- VLM integration
-- FAISS indexing pipeline
-- MongoDB persistence logic
-- dashboard polling and visualization
+- `docs/architecture.md` contains the written architecture overview
+- `docs/architecture.js` contains the reusable Mermaid diagram source
 
 ---
 
-## Future Enhancements
+## Notes
 
-- MLflow experiment tracking
-- model registry integration
-- Kafka-based ingestion
-- alerting via Slack, email, or ticketing systems
-- operator feedback loop for threshold tuning
-- defect heatmaps and localization
+- `data/raw/` is excluded from Git so datasets are not uploaded to GitHub.
+- The current local workflow covers training and local streaming inference.
+- Databricks integration can be added later using `streaming/databricks/`.
 
 ---
-
-
----
-
-
