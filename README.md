@@ -42,6 +42,17 @@ This project addresses that **cold start anomaly detection** problem by:
 
 ---
 
+## Key Features
+
+- Unsupervised defect detection for low-data manufacturing environments
+- Real-time frame ingestion and anomaly scoring pipeline
+- Delta-style anomaly event logging for downstream processing
+- LLM-assisted defect description and SOP retrieval workflow
+- Automated maintenance ticket generation
+- Web dashboard for monitoring anomalies and system health
+
+---
+
 ## System Architecture
 
 ```text
@@ -128,41 +139,25 @@ Maintenance Ticket + Dashboard + MongoDB
 
 ---
 
-## Learning Roadmap
+## Implementation Phases
 
-If you are new to tools like Databricks, do **not** start by trying to build the full system at once.
-
-Build the project in the following **4 phases**.
+The project is organized into four progressive implementation phases.
 
 ### Phase 1: Local Anomaly Detection Baseline
 
-**Goal:** Learn the core ML idea first.
+**Objective**
 
-In this phase, ignore Databricks, LangGraph, and the full dashboard.
+- establish an unsupervised defect-detection baseline using the MVTec AD dataset
 
-Build only:
+**Scope**
 
-- dataset loading from MVTec AD
-- a simple convolutional autoencoder in PyTorch
-- reconstruction error scoring using MSE
-- anomaly threshold selection
-- offline evaluation on normal vs defective samples
+- dataset loading and preprocessing
+- convolutional autoencoder training in PyTorch
+- reconstruction error scoring with MSE
+- threshold selection for anomaly classification
+- offline validation on normal and defective samples
 
-**What you will learn:**
-
-- how unsupervised anomaly detection works
-- why reconstruction error can detect defects
-- how to train and validate an autoencoder
-- how to define an anomaly threshold
-
-**Suggested output:**
-
-- train a model locally
-- save checkpoints
-- score sample images
-- print anomaly predictions in a notebook or Python script
-
-**Focus folders:**
+**Primary folders**
 
 - `ml/models/`
 - `ml/training/`
@@ -170,38 +165,21 @@ Build only:
 
 ---
 
-### Phase 2: Simulated Real-Time Streaming
+### Phase 2: Streaming Inference Pipeline
 
-**Goal:** Learn streaming concepts locally before using Databricks.
+**Objective**
 
-In this phase, simulate a factory camera feed by sending images from a folder one by one.
+- convert offline scoring into a real-time anomaly detection workflow
 
-Build:
+**Scope**
 
-- a local producer that emits image frames at a fixed FPS
-- a local consumer or scoring loop that reads and scores those frames
-- anomaly event logging to a local file, SQLite, or JSON output
+- frame producer for simulated camera input
+- continuous frame scoring and anomaly event generation
+- local event logging for validation
+- Spark Structured Streaming job design
+- Databricks ingestion and Delta table integration
 
-After that works, move the same idea into:
-
-- Spark Structured Streaming
-- Databricks file ingestion or Kafka ingestion
-- Delta table logging for anomalies
-
-**What you will learn:**
-
-- the basics of event streams
-- how batch ML logic becomes streaming ML logic
-- how Databricks can simplify ingestion, compute, and storage
-- how Delta tables fit into streaming pipelines
-
-**Suggested output:**
-
-- frames processed continuously
-- anomaly scores written per frame
-- anomaly events stored in a structured log
-
-**Focus folders:**
+**Primary folders**
 
 - `streaming/simulator/`
 - `streaming/databricks/`
@@ -209,71 +187,41 @@ After that works, move the same idea into:
 
 ---
 
-### Phase 3: LLM Defect Diagnosis and SOP Retrieval
+### Phase 3: Defect Diagnosis and Retrieval-Augmented Guidance
 
-**Goal:** Turn an anomaly event into an explanation and action.
+**Objective**
 
-Once anomaly events exist, connect them to an LLM workflow.
+- enrich anomaly events with defect descriptions and repair guidance
 
-Build:
+**Scope**
 
-- a Vision-Language Model step that describes the visual defect
-- document chunking for SOPs and repair manuals
-- FAISS indexing for retrieval
-- a LangGraph workflow that routes:
-  - anomaly image
-  - defect description
-  - SOP retrieval
-  - ticket synthesis
+- vision-language defect description step
+- SOP and repair manual ingestion
+- FAISS index construction and querying
+- LangGraph workflow orchestration
+- maintenance ticket draft generation
 
-**What you will learn:**
-
-- how VLMs convert images into structured text descriptions
-- how RAG systems retrieve operational knowledge
-- how LangGraph coordinates multi-step agent workflows
-- how LLM outputs can be transformed into actionable tickets
-
-**Suggested output:**
-
-- text description of the defect
-- retrieved SOP snippet
-- generated maintenance ticket draft
-
-**Focus folders:**
+**Primary folders**
 
 - `orchestration/`
 - `apps/api/`
 
 ---
 
-### Phase 4: Full-Stack Productization
+### Phase 4: Application Layer and Productization
 
-**Goal:** Expose the system like a real internal factory tool.
+**Objective**
 
-Now connect everything end to end.
+- expose the system through service APIs, persistence, and a monitoring dashboard
 
-Build:
+**Scope**
 
-- FastAPI endpoints for anomalies, tickets, and system health
-- MongoDB persistence for tickets and audit logs
-- Next.js dashboard for live status and recent events
-- optional auth, role-based access, and deployment workflows
+- FastAPI endpoints for health, anomalies, and tickets
+- MongoDB persistence for events and ticket history
+- Next.js dashboard for monitoring and review
+- auditability, operator workflows, and deployment readiness
 
-**What you will learn:**
-
-- how backend APIs connect ML systems to frontend apps
-- how dashboards present streaming inference results
-- how to store audit trails and operator actions
-- how to structure an AI project like a production system
-
-**Suggested output:**
-
-- live dashboard cards
-- recent anomaly table
-- ticket generation workflow
-- full demo across backend, model, and UI
-
-**Focus folders:**
+**Primary folders**
 
 - `apps/api/`
 - `apps/dashboard/`
@@ -281,17 +229,24 @@ Build:
 
 ---
 
-## Recommended Build Order
+## Roadmap
 
-If your goal is to learn the tools properly, follow this order:
-
-1. **Train the anomaly detector locally**
-2. **Simulate streaming locally**
-3. **Move streaming into Databricks**
-4. **Add LLM diagnosis and retrieval**
-5. **Expose everything through API + dashboard**
-
-This way, Databricks becomes easier to understand because you will already know the logic it is orchestrating.
+- [x] Monorepo scaffold
+- [x] FastAPI service skeleton
+- [x] Next.js dashboard skeleton
+- [x] Autoencoder model placeholder
+- [x] Streaming simulator placeholder
+- [x] LangGraph and FAISS placeholders
+- [ ] MVTec AD dataset loader
+- [ ] Autoencoder training pipeline
+- [ ] Threshold calibration and evaluation workflow
+- [ ] Real-time anomaly scoring loop
+- [ ] Databricks Structured Streaming integration
+- [ ] Delta table anomaly logging
+- [ ] VLM-powered defect description
+- [ ] FAISS indexing and retrieval pipeline
+- [ ] Ticket persistence in MongoDB
+- [ ] Live anomaly dashboard and polling
 
 ---
 
@@ -382,14 +337,7 @@ What still needs to be implemented:
 
 ---
 
-## Notes
-
-- If you use **Gemini API**, you will need an API key.
-- Do **not** hardcode secrets into the repository.
-- If you are learning Databricks for the first time, treat it as a deployment and orchestration layer after your local prototype works.
 
 ---
 
-## License
 
-Add your preferred license here.

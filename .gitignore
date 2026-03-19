@@ -16,3 +16,6 @@ build/
 coverage/
 *.log
 mlruns/
+artifacts/
+data/raw/*
+!data/raw/.gitkeep
