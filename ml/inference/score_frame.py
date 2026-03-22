@@ -67,5 +67,7 @@ def load_model_checkpoint(
         "image_size": checkpoint.get("image_size", 256),
         "threshold": checkpoint.get("threshold"),
         "epochs": checkpoint.get("epochs"),
+        "threshold_strategy": checkpoint.get("threshold_strategy"),
+        "threshold_details": checkpoint.get("threshold_details"),
     }
     return model, metadata

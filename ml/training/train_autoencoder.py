@@ -8,9 +8,9 @@ from torch.utils.data import DataLoader
 
 from ml.data.mvtec import create_evaluation_dataset, create_training_dataset
 from ml.inference.score_frame import compute_batch_reconstruction_errors
-from ml.inference.thresholds import classify_error, compute_binary_metrics, estimate_threshold
+from ml.inference.thresholds import calibrate_threshold, classify_error, compute_binary_metrics
 from ml.models.autoencoder import ConvAutoencoder
-
+``
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train an autoencoder for MVTec anomaly detection.")
@@ -21,6 +21,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=1e-3, help="Optimizer learning rate.")
     parser.add_argument("--image-size", type=int, default=256, help="Square resize value used for input images.")
     parser.add_argument("--threshold-percentile", type=float, default=95.0, help="Percentile of training errors used as anomaly threshold.")
+    parser.add_argument(
+        "--threshold-strategy",
+        choices=["auto", "percentile", "balanced_accuracy", "f1"],
+        default="auto",
+        help="Strategy used to choose the anomaly threshold.",
+    )
     parser.add_argument("--checkpoint-dir", default="artifacts/models", help="Directory where trained checkpoints will be saved.")
     parser.add_argument("--metrics-dir", default="artifacts/training", help="Directory where training metrics will be saved.")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu", help="Training device.")
@@ -62,14 +68,11 @@ def collect_training_errors(
     return errors
 
 
-def evaluate(
+def collect_evaluation_records(
     dataloader: DataLoader[tuple[torch.Tensor, int, str]],
     model: ConvAutoencoder,
-    threshold: float,
     device: str,
-) -> tuple[dict[str, float | int], list[dict[str, object]]]:
-    labels: list[int] = []
-    predictions: list[int] = []
+) -> list[dict[str, object]]:
     records: list[dict[str, object]] = []
 
     for frames, batch_labels, batch_paths in dataloader:
@@ -77,19 +80,39 @@ def evaluate(
         label_values = batch_labels.tolist()
 
         for path, label, error in zip(batch_paths, label_values, errors):
-            prediction = classify_error(error, threshold)
-            labels.append(label)
-            predictions.append(prediction)
             records.append(
                 {
                     "image_path": path,
-                    "label": label,
-                    "prediction": prediction,
+                    "label": int(label),
                     "mse_score": error,
                 }
             )
 
-    return compute_binary_metrics(labels, predictions), records
+    return records
+
+
+def evaluate_records(
+    records: list[dict[str, object]],
+    threshold: float,
+) -> tuple[dict[str, float | int], list[dict[str, object]]]:
+    labels: list[int] = []
+    predictions: list[int] = []
+    evaluated_records: list[dict[str, object]] = []
+
+    for record in records:
+        label = int(record["label"])
+        error = float(record["mse_score"])
+        prediction = classify_error(error, threshold)
+        labels.append(label)
+        predictions.append(prediction)
+        evaluated_records.append(
+            {
+                **record,
+                "prediction": prediction,
+            }
+        )
+
+    return compute_binary_metrics(labels, predictions), evaluated_records
 
 
 def ensure_dataset_available(dataset_root: str, category: str, train_count: int, eval_count: int) -> None:
@@ -125,8 +148,17 @@ def main() -> None:
         print({"epoch": epoch, "loss": epoch_loss})
 
     training_errors = collect_training_errors(training_loader, model, device)
-    threshold = estimate_threshold(training_errors, percentile=args.threshold_percentile)
-    metrics, predictions = evaluate(evaluation_loader, model, threshold, device)
+    evaluation_records = collect_evaluation_records(evaluation_loader, model, device)
+    evaluation_errors = [float(record["mse_score"]) for record in evaluation_records]
+    evaluation_labels = [int(record["label"]) for record in evaluation_records]
+    threshold, threshold_details = calibrate_threshold(
+        training_errors,
+        percentile=args.threshold_percentile,
+        evaluation_errors=evaluation_errors,
+        evaluation_labels=evaluation_labels,
+        strategy=args.threshold_strategy,
+    )
+    metrics, predictions = evaluate_records(evaluation_records, threshold)
 
     checkpoint_dir = Path(args.checkpoint_dir)
     metrics_dir = Path(args.metrics_dir)
@@ -144,6 +176,8 @@ def main() -> None:
             "epochs": args.epochs,
             "threshold": threshold,
             "threshold_percentile": args.threshold_percentile,
+            "threshold_strategy": args.threshold_strategy,
+            "threshold_details": threshold_details,
         },
         checkpoint_path,
     )
@@ -156,7 +190,9 @@ def main() -> None:
         "learning_rate": args.learning_rate,
         "image_size": args.image_size,
         "threshold_percentile": args.threshold_percentile,
+        "threshold_strategy": args.threshold_strategy,
         "threshold": threshold,
+        "threshold_details": threshold_details,
         "train_image_count": len(training_dataset),
         "test_image_count": len(evaluation_dataset),
         "epoch_losses": epoch_losses,
